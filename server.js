@@ -1,34 +1,31 @@
 const express = require("express")
 const http = require("http")
 const WebSocket = require("ws")
-const path = require("path")
-
 const GameServer = require("./server/GameServer")
 
 const app = express()
 const server = http.createServer(app)
 const wss = new WebSocket.Server({ server })
 
-app.use(express.static(path.join(__dirname,"public")))
+const gameServer = new GameServer()
 
-app.get("/",(req,res)=>{
-res.sendFile(path.join(__dirname,"public","index.html"))
+app.use(express.static("public"))
+
+wss.on("connection", (ws) => {
+
+    const player = gameServer.addPlayer(ws)
+
+    ws.on("message", (msg) => {
+        gameServer.handleMessage(player, msg)
+    })
+
+    ws.on("close", () => {
+        gameServer.removePlayer(player)
+    })
 })
 
-const game = new GameServer()
+const PORT = process.env.PORT || 3000
 
-wss.on("connection",(ws)=>{
-
-game.addClient(ws)
-
-})
-
-const PORT = process.env.PORT || 10000
-
-server.listen(PORT,()=>{
-
-console.log("ULTRA Bubble Engine running")
-
-game.start()
-
+server.listen(PORT, () => {
+    console.log("Server running on port", PORT)
 })
