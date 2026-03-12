@@ -85,9 +85,7 @@ return code
 joinParty(player,code){
 
 if(!this.parties.has(code)){
-
 this.parties.set(code,[])
-
 }
 
 player.party = code
@@ -107,15 +105,11 @@ if(!list) return
 let index = list.indexOf(player)
 
 if(index !== -1){
-
 list.splice(index,1)
-
 }
 
 if(list.length === 0){
-
 this.parties.delete(player.party)
-
 }
 
 }
@@ -127,11 +121,8 @@ update(){
 this.players.forEach(p=>p.update())
 
 this.updateEjected()
-
 this.updateViruses()
-
 this.updateFood()
-
 this.updateCollisions()
 
 this.sendWorldState()
@@ -190,7 +181,6 @@ let dy=c1.y-f.y
 if(Math.sqrt(dx*dx+dy*dy) < physics.radius(c1.mass)){
 
 c1.mass+=1
-
 this.food.splice(i,1)
 
 }
@@ -210,7 +200,6 @@ let c2=p2.cells[i]
 if(physics.canEat(c1,c2)){
 
 c1.mass += c2.mass
-
 p2.cells.splice(i,1)
 
 }
@@ -245,10 +234,27 @@ sendWorldState(){
 let state={
 
 players:{},
-food:this.food,
-viruses:this.viruses,
-ejected:this.ejected,
+
+// FIX: wysyłamy tylko dane zamiast obiektów
+
+food:this.food.map(f=>({
+x:f.x,
+y:f.y,
+color:f.color
+})),
+
+viruses:this.viruses.map(v=>({
+x:v.x,
+y:v.y
+})),
+
+ejected:this.ejected.map(m=>({
+x:m.x,
+y:m.y
+})),
+
 leaderboard:this.getLeaderboard(),
+
 parties:[...this.parties.keys()]
 
 }
