@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, "public")));
 
 const TICKRATE = 30;
 const MAP_SIZE = 4000;
