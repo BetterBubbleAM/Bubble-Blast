@@ -4,87 +4,92 @@ const http = require('http').Server(app);
 const io = require('socket.io')(http);
 const path = require('path');
 
-// To polecenie mówi serwerowi, gdzie są pliki strony (obrazki, skrypty, html)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Dodatkowe zabezpieczenie: jeśli ktoś wejdzie na stronę główną, wyślij mu index.html
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-const CONFIG = {
-    WORLD_SIZE: 3000,
-    FOOD_COUNT: 150,
-    START_MASS: 20
-};
+// Stałe zgodne z bubbleam.pl
+const WORLD_SIZE = 5000;
+const START_MASS = 20;
+const FOOD_COUNT = 300;
 
 let players = {};
 let food = [];
 
-for (let i = 0; i < CONFIG.FOOD_COUNT; i++) {
-    spawnFood();
+function spawnFood() {
+    return {
+        id: Math.random(),
+        x: Math.random() * WORLD_SIZE,
+        y: Math.random() * WORLD_SIZE,
+        color: `hsl(${Math.random() * 360}, 100%, 50%)`
+    };
 }
 
-function spawnFood() {
-    food.push({
-        id: Math.random(),
-        x: Math.random() * CONFIG.WORLD_SIZE,
-        y: Math.random() * CONFIG.WORLD_SIZE,
-        color: `hsl(${Math.random() * 360}, 100%, 50%)`
-    });
-}
+for (let i = 0; i < FOOD_COUNT; i++) food.push(spawnFood());
 
 io.on('connection', (socket) => {
     socket.on('join', (name) => {
         players[socket.id] = {
             id: socket.id,
             name: name || "Player",
-            x: CONFIG.WORLD_SIZE / 2,
-            y: CONFIG.WORLD_SIZE / 2,
-            mass: CONFIG.START_MASS,
+            x: Math.random() * WORLD_SIZE,
+            y: Math.random() * WORLD_SIZE,
+            mass: START_MASS,
             color: `hsl(${Math.random() * 360}, 100%, 60%)`,
-            mouseX: 0, mouseY: 0
+            mouseX: 0, 
+            mouseY: 0
         };
+        socket.emit('init', socket.id);
     });
 
     socket.on('input', (data) => {
         if (players[socket.id]) {
-            players[socket.id].mouseX = data.mouseX;
-            players[socket.id].mouseY = data.mouseY;
+            players[socket.id].mouseX = data.x;
+            players[socket.id].mouseY = data.y;
         }
     });
 
     socket.on('disconnect', () => delete players[socket.id]);
 });
 
+// Pętla fizyki (60 FPS)
 setInterval(() => {
     Object.values(players).forEach(p => {
-        let speed = 4 * Math.pow(p.mass, -0.44) * 20;
+        // DOKŁADNY WZÓR NA PRĘDKOŚĆ Z TWOICH PLIKÓW:
+        // speedMultiplier = 2.2 * Math.pow(this.mass, -0.44) * 45;
+        let speedMult = 2.2 * Math.pow(p.mass, -0.44) * 45;
+        let speed = speedMult / 20; 
+
+        // Obliczanie kierunku ruchu
         let dx = p.mouseX;
         let dy = p.mouseY;
-        let mag = Math.sqrt(dx*dx + dy*dy);
-        if (mag > 1) {
-            p.x += (dx / mag) * speed;
-            p.y += (dy / mag) * speed;
+        let angle = Math.atan2(dy, dx);
+        
+        // Ruch tylko jeśli myszka jest oddalona od środka
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+            p.x += Math.cos(angle) * speed;
+            p.y += Math.sin(angle) * speed;
         }
-        p.x = Math.max(0, Math.min(CONFIG.WORLD_SIZE, p.x));
-        p.y = Math.max(0, Math.min(CONFIG.WORLD_SIZE, p.y));
 
-        food.forEach((f, index) => {
+        // Granice świata (z Twojego pliku: 0 do 5000)
+        p.x = Math.max(0, Math.min(WORLD_SIZE, p.x));
+        p.y = Math.max(0, Math.min(WORLD_SIZE, p.y));
+
+        // Zjadanie jedzenia
+        food.forEach((f, i) => {
             let dist = Math.hypot(p.x - f.x, p.y - f.y);
-            let radius = Math.sqrt(p.mass * 100 / Math.PI);
+            let radius = Math.sqrt(p.mass * 100 / Math.PI); // Wzór promienia z Twojego pliku
             if (dist < radius) {
                 p.mass += 1;
-                food.splice(index, 1);
-                spawnFood();
+                food[i] = spawnFood();
             }
         });
     });
+
     io.emit('update', { players, food });
 }, 16);
 
-// Bardzo ważne dla Rendera: proces musi słuchać na porcie z proces.env.PORT
-const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => {
-    console.log(`Serwer działa na porcie ${PORT}`);
-});
+const PORT = process.env.PORT || 10000;
+http.listen(PORT, () => console.log(`Gra ruszyła na porcie ${PORT}`));
