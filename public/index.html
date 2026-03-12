@@ -1,30 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8" />
-    <title>Bubbleam Clone</title>
-    <link rel="stylesheet" href="style.css" />
+<meta charset="utf-8">
+<title>Bubble Engine</title>
+<link rel="stylesheet" href="style.css">
 </head>
-<body class="darkBody">
-    <div id="overlays">
-        <div id="helloDialog">
-            <h2 style="text-align: center;">Bubbleam Clone</h2>
-            <p style="text-align: center;" class="text-muted">By AI</p>
-            <hr>
-            <input id="nick" class="form-control" placeholder="Nick" maxlength="15" />
-            <button id="playBtn" class="btn btn-primary" style="width: 100%; margin-top:10px; padding: 10px;">Play</button>
-            <hr>
-            <div id="instructions" style="text-align: center;">
-                <b>Mouse</b> - Move <br>
-                <b>Space</b> - Split <br>
-                <b>W</b> - Eject Mass <br>
-                <b>E</b> - Macro Feed <br>
-            </div>
-        </div>
-    </div>
-    <canvas id="canvas"></canvas>
 
-    <script src="Vector2.js"></script>
-    <script src="client.js"></script>
+<body>
+
+<div id="menu">
+
+<h1>Bubble Engine</h1>
+
+<input id="nick" placeholder="Nick">
+
+<button id="play">Play</button>
+
+</div>
+
+<canvas id="game"></canvas>
+
+<script src="client.js"></script>
+
 </body>
 </html>
