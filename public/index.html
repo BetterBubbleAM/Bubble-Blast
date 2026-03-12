@@ -1,45 +1,26 @@
 <!DOCTYPE html>
 <html>
 <head>
-
-<meta charset="utf-8">
-<title>Bubble Engine</title>
-
+<meta charset="UTF-8">
+<title>Bubble Clone</title>
 <link rel="stylesheet" href="style.css">
-
 </head>
 
 <body>
 
-<div id="menu">
+<canvas id="gameCanvas"></canvas>
 
-<h1>Bubble Engine</h1>
+<div id="ui">
 
 <input id="nick" placeholder="Nick">
 
-<input id="skin" placeholder="Skin URL">
-
-<input id="clan" placeholder="Clan Tag">
-
-<button id="play">Play</button>
-
-</div>
+<button id="play">
+PLAY
+</button>
 
 <div id="leaderboard"></div>
 
-<div id="partyPanel">
-
-<input id="partyCode" placeholder="Party Code">
-
-<button id="createParty">Create</button>
-
-<button id="joinParty">Join</button>
-
 </div>
-
-<canvas id="game"></canvas>
-
-<canvas id="minimap"></canvas>
 
 <script src="client.js"></script>
 
