@@ -1,7 +1,7 @@
 {
-  "name": "bubbleam-clone",
+  "name": "bubble-engine",
   "version": "1.0.0",
-  "description": "Agario clone based on mechanics",
+  "description": "Bubble Agar Engine",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
