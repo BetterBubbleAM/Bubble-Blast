@@ -1,95 +1,155 @@
-const express = require('express');
-const app = express();
-const http = require('http').Server(app);
-const io = require('socket.io')(http);
-const path = require('path');
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({ port: 8080 });
 
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Stałe zgodne z bubbleam.pl
-const WORLD_SIZE = 5000;
-const START_MASS = 20;
-const FOOD_COUNT = 300;
+// Ustawienia z tekstu bazowego
+const TICKRATE = 30;
+const EAT_THRESHOLD = 1.25; // pkt 1: 25% przewagi
+const MAX_CELLS = 16;       // pkt 1: limit 16 części
+const MASS_DECAY = 0.002;   // pkt 5: utrata 0.002 na sekundę
+const START_MASS = 20;      // pkt 5: zasada 0 masy (minimum 20)
+const VIRUS_MASS = 100;     // pkt 3: wartość odżywcza wirusa
 
 let players = {};
-let food = [];
+let viruses = [];
+let food =[];
+const MAP_SIZE = 3000;
 
-function spawnFood() {
-    return {
-        id: Math.random(),
-        x: Math.random() * WORLD_SIZE,
-        y: Math.random() * WORLD_SIZE,
-        color: `hsl(${Math.random() * 360}, 100%, 50%)`
+// Inicjalizacja jedzenia i wirusów
+for(let i=0; i<500; i++) food.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, mass: 1, id: i });
+for(let i=0; i<15; i++) viruses.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, mass: VIRUS_MASS, fed: 0, id: i });
+
+function getRadius(mass) { return Math.sqrt(mass) * 10; }
+
+wss.on('connection', (ws) => {
+    let id = Math.random().toString();
+    players[id] = { 
+        id: id, 
+        cells:[{ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, mass: START_MASS, vx: 0, vy: 0 }],
+        mouseX: 0, mouseY: 0, name: "Gracz"
     };
-}
 
-for (let i = 0; i < FOOD_COUNT; i++) food.push(spawnFood());
+    ws.on('message', (data) => {
+        let msg = JSON.parse(data);
+        let p = players[id];
+        if (!p) return;
 
-io.on('connection', (socket) => {
-    socket.on('join', (name) => {
-        players[socket.id] = {
-            id: socket.id,
-            name: name || "Player",
-            x: Math.random() * WORLD_SIZE,
-            y: Math.random() * WORLD_SIZE,
-            mass: START_MASS,
-            color: `hsl(${Math.random() * 360}, 100%, 60%)`,
-            mouseX: 0, 
-            mouseY: 0
-        };
-        socket.emit('init', socket.id);
-    });
-
-    socket.on('input', (data) => {
-        if (players[socket.id]) {
-            players[socket.id].mouseX = data.x;
-            players[socket.id].mouseY = data.y;
+        if (msg.type === 'move') {
+            p.mouseX = msg.x; p.mouseY = msg.y;
+        } else if (msg.type === 'split') { // pkt 4 i 7: mechanika podziału i pop-split
+            if (p.cells.length >= MAX_CELLS) return; // pkt 1: Twardy limit silnika
+            let currentCells = [...p.cells];
+            currentCells.forEach(cell => {
+                if (cell.mass > 35 && p.cells.length < MAX_CELLS) {
+                    cell.mass /= 2;
+                    // Wyrzut w kierunku myszki
+                    let angle = Math.atan2(p.mouseY - cell.y, p.mouseX - cell.x);
+                    p.cells.push({
+                        x: cell.x, y: cell.y, mass: cell.mass,
+                        vx: Math.cos(angle) * 30, vy: Math.sin(angle) * 30
+                    });
+                }
+            });
+        } else if (msg.type === 'shoot') { // pkt 3 i 4: Wyrzut masy / Macro Feed
+            p.cells.forEach(cell => {
+                if (cell.mass > 30) {
+                    cell.mass -= 15;
+                    let angle = Math.atan2(p.mouseY - cell.y, p.mouseX - cell.x);
+                    // W grze zaimplementowano by tu obiekt "wystrzelonej masy", dla uproszczenia
+                    // pomijamy kod poruszania się masy, skupiając się na mechanice wirusa.
+                }
+            });
         }
     });
 
-    socket.on('disconnect', () => delete players[socket.id]);
+    ws.on('close', () => delete players[id]);
 });
 
-// Pętla fizyki (60 FPS)
+// SILNIK GRY - TICKRATE (pkt 2)
 setInterval(() => {
     Object.values(players).forEach(p => {
-        // DOKŁADNY WZÓR NA PRĘDKOŚĆ Z TWOICH PLIKÓW:
-        // speedMultiplier = 2.2 * Math.pow(this.mass, -0.44) * 45;
-        let speedMult = 2.2 * Math.pow(p.mass, -0.44) * 45;
-        let speed = speedMult / 20; 
+        let totalMass = 0;
 
-        // Obliczanie kierunku ruchu
-        let dx = p.mouseX;
-        let dy = p.mouseY;
-        let angle = Math.atan2(dy, dx);
-        
-        // Ruch tylko jeśli myszka jest oddalona od środka
-        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-            p.x += Math.cos(angle) * speed;
-            p.y += Math.sin(angle) * speed;
-        }
+        p.cells.forEach((cell, index) => {
+            totalMass += cell.mass;
 
-        // Granice świata (z Twojego pliku: 0 do 5000)
-        p.x = Math.max(0, Math.min(WORLD_SIZE, p.x));
-        p.y = Math.max(0, Math.min(WORLD_SIZE, p.y));
+            // Ruch do myszki
+            let speed = 20 / Math.sqrt(cell.mass);
+            let angle = Math.atan2(p.mouseY - cell.y, p.mouseX - cell.x);
+            cell.x += Math.cos(angle) * speed + cell.vx;
+            cell.y += Math.sin(angle) * speed + cell.vy;
+            
+            // Wygaszanie pędu (po splicie)
+            cell.vx *= 0.9; cell.vy *= 0.9;
 
-        // Zjadanie jedzenia
-        food.forEach((f, i) => {
-            let dist = Math.hypot(p.x - f.x, p.y - f.y);
-            let radius = Math.sqrt(p.mass * 100 / Math.PI); // Wzór promienia z Twojego pliku
-            if (dist < radius) {
-                p.mass += 1;
-                food[i] = spawnFood();
+            // pkt 5: Ekonomia i Mass Decay
+            if (cell.mass > 500) {
+                // (0.002 na sekundę / TICKRATE)
+                cell.mass -= cell.mass * MASS_DECAY / TICKRATE; 
             }
+            if (cell.mass < START_MASS) cell.mass = START_MASS;
+
+            // pkt 1: Matematyka Kolizji i Konsumpcji
+            Object.values(players).forEach(p2 => {
+                if (p.id === p2.id) return; // Tymczasowo ignorujemy łączenie się własnych komórek
+                p2.cells.forEach((cell2, i2) => {
+                    let dx = cell.x - cell2.x; let dy = cell.y - cell2.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    let r1 = getRadius(cell.mass); let r2 = getRadius(cell2.mass);
+
+                    // Próg pożarcia 1.25x i odległość środków < promień większego
+                    if (dist < r1 && cell.mass >= cell2.mass * EAT_THRESHOLD) {
+                        cell.mass += cell2.mass; // Konsumpcja
+                        p2.cells.splice(i2, 1);
+                    }
+                });
+            });
+
+            // Kolizja z Wirusami (pkt 3: Anatomia Wirusa)
+            viruses.forEach((v, vIndex) => {
+                let dx = cell.x - v.x; let dy = cell.y - v.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < getRadius(cell.mass) && cell.mass >= v.mass * EAT_THRESHOLD) {
+                    if (p.cells.length >= MAX_CELLS) {
+                        // Zjedzenie wirusa, gdy mamy już 16 części
+                        cell.mass += v.mass;
+                        viruses.splice(vIndex, 1);
+                        viruses.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, mass: VIRUS_MASS, fed: 0, id: Math.random() });
+                    } else {
+                        // Eksplozja na wirusie
+                        let parts = Math.min(MAX_CELLS - p.cells.length, Math.floor(cell.mass / 20));
+                        for(let i=0; i<parts; i++) {
+                            p.cells.push({
+                                x: cell.x, y: cell.y, mass: cell.mass/parts,
+                                vx: (Math.random()-0.5)*40, vy: (Math.random()-0.5)*40
+                            });
+                        }
+                        cell.mass /= parts;
+                        viruses.splice(vIndex, 1);
+                    }
+                }
+            });
+
+            // Kolizja z jedzeniem
+            food.forEach((f, fIndex) => {
+                let dx = cell.x - f.x; let dy = cell.y - f.y;
+                if (Math.sqrt(dx*dx + dy*dy) < getRadius(cell.mass)) {
+                    cell.mass += f.mass;
+                    food[fIndex] = { x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, mass: 1, id: Math.random() };
+                }
+            });
         });
+
+        // Śmierć i Auto-Respawn (pkt 4)
+        if (p.cells.length === 0) {
+            p.cells.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, mass: START_MASS, vx:0, vy:0 });
+        }
     });
 
-    io.emit('update', { players, food });
-}, 16);
+    // Rozsyłanie danych (Tickrate)
+    let state = JSON.stringify({ players, food, viruses });
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) client.send(state);
+    });
+}, 1000 / TICKRATE);
 
-const PORT = process.env.PORT || 10000;
-http.listen(PORT, () => console.log(`Gra ruszyła na porcie ${PORT}`));
+console.log(`Serwer wystartował na porcie 8080 z tickrate ${TICKRATE}Hz`);
