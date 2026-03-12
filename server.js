@@ -4,43 +4,86 @@ const http = require('http').Server(app);
 const io = require('socket.io')(http);
 const path = require('path');
 
-app.use(express.static(path.join(__dirname, '/')));
+app.use(express.static(__dirname + '/public'));
+
+const CONFIG = {
+    WORLD_SIZE: 3000,
+    FOOD_COUNT: 150,
+    START_MASS: 20
+};
 
 let players = {};
+let food = [];
+
+// Generowanie jedzenia na start
+for (let i = 0; i < CONFIG.FOOD_COUNT; i++) {
+    spawnFood();
+}
+
+function spawnFood() {
+    food.push({
+        id: Math.random(),
+        x: Math.random() * CONFIG.WORLD_SIZE,
+        y: Math.random() * CONFIG.WORLD_SIZE,
+        color: `hsl(${Math.random() * 360}, 100%, 50%)`
+    });
+}
 
 io.on('connection', (socket) => {
     socket.on('join', (name) => {
         players[socket.id] = {
             id: socket.id,
-            name: name,
-            x: Math.random() * 1000,
-            y: Math.random() * 1000,
-            mass: 20,
-            color: `hsl(${Math.random() * 360}, 100%, 50%)`
+            name: name || "Player",
+            x: CONFIG.WORLD_SIZE / 2,
+            y: CONFIG.WORLD_SIZE / 2,
+            mass: CONFIG.START_MASS,
+            color: `hsl(${Math.random() * 360}, 100%, 60%)`,
+            mouseX: 0, mouseY: 0
         };
-        socket.emit('init', socket.id);
     });
 
-    socket.on('mouseMove', (m) => {
+    socket.on('input', (data) => {
         if (players[socket.id]) {
-            // Prosty ruch w stronę myszki
-            let p = players[socket.id];
-            p.x += (m.x - (1920/2)) * 0.01; // Uproszczone dla testu
-            p.y += (m.y - (1080/2)) * 0.01;
+            players[socket.id].mouseX = data.mouseX;
+            players[socket.id].mouseY = data.mouseY;
         }
     });
 
-    socket.on('disconnect', () => {
-        delete players[socket.id];
-    });
+    socket.on('disconnect', () => delete players[socket.id]);
 });
 
-// Aktualizacja pozycji 60 razy na sekundę
+// Pętla fizyki serwera (60 FPS)
 setInterval(() => {
-    io.emit('update', players);
+    Object.values(players).forEach(p => {
+        // Obliczanie prędkości na podstawie masy
+        let speed = 4 * Math.pow(p.mass, -0.44) * 20;
+        
+        // Ruch w stronę myszki
+        let dx = p.mouseX;
+        let dy = p.mouseY;
+        let mag = Math.sqrt(dx*dx + dy*dy);
+        if (mag > 1) {
+            p.x += (dx / mag) * speed;
+            p.y += (dy / mag) * speed;
+        }
+
+        // Granice świata
+        p.x = Math.max(0, Math.min(CONFIG.WORLD_SIZE, p.x));
+        p.y = Math.max(0, Math.min(CONFIG.WORLD_SIZE, p.y));
+
+        // Zjadanie jedzenia
+        food.forEach((f, index) => {
+            let dist = Math.hypot(p.x - f.x, p.y - f.y);
+            let radius = Math.sqrt(p.mass * 100 / Math.PI);
+            if (dist < radius) {
+                p.mass += 1;
+                food.splice(index, 1);
+                spawnFood();
+            }
+        });
+    });
+
+    io.emit('update', { players, food });
 }, 16);
 
-const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => {
-    console.log(`Serwer działa na http://localhost:${PORT}`);
-});
+http.listen(process.env.PORT || 3000);
