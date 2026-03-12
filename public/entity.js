@@ -1,7 +1,6 @@
 class Entity {
     constructor(x, y, mass, color, name, type = 'player') {
         this.pos = new Vector2(x, y);
-        this.vel = new Vector2(0, 0);
         this.mass = mass;
         this.color = color;
         this.name = name || "";
@@ -11,26 +10,24 @@ class Entity {
     }
 
     updateRadius() {
+        // Wzór z bubbleam.pl
         this.radius = Math.sqrt(this.mass * 100 / Math.PI);
     }
 
-    draw(ctx, showMass) {
+    draw(ctx) {
         ctx.save();
         ctx.translate(this.pos.x, this.pos.y);
+        this.drawCircle(ctx);
+        ctx.restore();
+    }
 
-        // Poświata neonowa
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = this.color;
-
+    drawCircle(ctx) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 2;
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
         ctx.fill();
-        
-        // Obramowanie
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = "rgba(255,255,255,0.5)";
-        ctx.lineWidth = 2;
         ctx.stroke();
 
         if (this.mass > 10) {
@@ -41,11 +38,9 @@ class Entity {
             ctx.font = `bold ${fontSize}px Ubuntu`;
             ctx.fillText(this.name, 0, 0);
 
-            if (showMass) {
-                ctx.font = `${fontSize * 0.6}px Ubuntu`;
-                ctx.fillText(Math.floor(this.mass), 0, this.radius * 0.5);
-            }
+            // Rysowanie masy jak w oryginale
+            ctx.font = `${fontSize * 0.6}px Ubuntu`;
+            ctx.fillText(Math.floor(this.mass), 0, this.radius * 0.5);
         }
-        ctx.restore();
     }
 }
