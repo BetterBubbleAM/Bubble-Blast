@@ -1,0 +1,13 @@
+{
+  "name": "bubble-am-engine",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "install-all": "pnpm install",
+    "build": "pnpm -r run build",
+    "start:server": "node game-server/dist/index.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
