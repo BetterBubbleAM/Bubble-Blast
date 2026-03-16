@@ -1,0 +1,13 @@
+{
+  "name": "bubble-blast",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter game-server run build",
+    "start": "node game-server/dist/index.js",
+    "install-all": "pnpm install"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
