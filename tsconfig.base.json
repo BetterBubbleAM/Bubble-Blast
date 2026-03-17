@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["packages/shared-core/src/*"],
+      "@ecs/*": ["packages/ecs/src/*"],
+      "@physics-engine/*": ["packages/physics-engine/src/*"],
+      "@spatial-hash/*": ["packages/spatial-hash/src/*"],
+      "@network-protocol/*": ["packages/network-protocol/src/*"],
+      "@game-server/*": ["game-server/src/*"]
+    }
+  }
+}
